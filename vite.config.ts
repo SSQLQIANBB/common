@@ -1,15 +1,16 @@
-import { defineConfig } from 'vite'
+import { defineConfig } from 'vite';
 
 export default defineConfig({
   build: {
     outDir: './lib',
-    rollupOptions: {},
-
+    rollupOptions: {
+      external: [], // 可根据需要添加外部依赖
+    },
     lib: {
       entry: './packages/index.ts',
-      name: '@prometheus/utils',
-      fileName: (format) => `index.${format}.js`,
+      name: 'PersonalUtils',
+      fileName: (format) => `index.${format === 'es' ? 'esm' : format}.js`,
       formats: ['es', 'umd'],
     },
   },
-})
+});

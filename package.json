@@ -4,23 +4,36 @@
   "version": "0.0.0",
   "type": "module",
   "files": [
-    "dist",
-    "index.d.ts"
+    "lib",
+    "types"
   ],
-  "main": "./dist/counter.umd.cjs",
-  "module": "./dist/counter.js",
-  "types": "./index.d.ts",
+  "main": "./lib/index.umd.js",
+  "module": "./lib/index.esm.js",
+  "types": "./lib/index.d.ts",
   "exports": {
-    "types": "./index.d.ts",
-    "import": "./dist/counter.js",
-    "require": "./dist/counter.umd.cjs"
+    ".": {
+      "types": "./types/index.d.ts",
+      "import": "./lib/index.esm.js",
+      "require": "./lib/index.umd.js"
+    }
   },
   "scripts": {
     "dev": "vite",
-    "build": "tsc && vite build"
+    "build": "tsc && vite build",
+    "build:types": "tsc --emitDeclarationOnly",
+    "example:install": "pnpm install --filter personal-utils-example",
+    "example:dev": "pnpm dev --filter personal-utils-example",
+    "example:build": "pnpm build --filter personal-utils-example",
+    "example:preview": "pnpm preview --filter personal-utils-example",
+    "example:setup": "pnpm install && pnpm build && pnpm example:dev"
   },
   "devDependencies": {
+    "@types/qs": "^6.14.0",
+    "qs": "^6.14.0",
     "typescript": "~5.9.2",
     "vite": "^7.0.6"
+  },
+  "dependencies": {
+    "axios": "^1.11.0"
   }
 }
