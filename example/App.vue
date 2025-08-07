@@ -41,9 +41,9 @@
 
   const testHttp = () => {
     try {
-      const result = http();
-      httpResult.value = result;
-      console.log('HTTP function result:', result);
+      // const result = http();
+      // httpResult.value = result;
+      // console.log('HTTP function result:', result);
     } catch (error) {
       console.error('Error calling http function:', error);
       // httpResult.value = { error: error.message };
