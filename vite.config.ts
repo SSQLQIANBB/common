@@ -8,7 +8,7 @@ export default defineConfig({
     },
     lib: {
       entry: './packages/index.ts',
-      name: 'PersonalUtils',
+      name: '@ssq/common',
       fileName: (format) => `index.${format === 'es' ? 'esm' : format}.js`,
       formats: ['es', 'umd'],
     },

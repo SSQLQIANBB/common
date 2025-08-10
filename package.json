@@ -1,12 +1,33 @@
 {
-  "name": "personal-utils",
-  "private": true,
-  "version": "0.0.0",
-  "type": "module",
-  "files": [
-    "lib",
-    "types"
+  "name": "@sycsq/common",
+  "version": "0.0.1",
+  "description": "一个基于 Vite 构建的 TypeScript 工具库，提供 HTTP 请求封装和常用工具函数，支持完整的类型声明",
+  "keywords": [
+    "typescript",
+    "utils",
+    "http",
+    "axios",
+    "vite",
+    "types",
+    "javascript",
+    "node",
+    "browser"
   ],
+  "author": {
+    "name": "sycsq",
+    "email": "mufengxidalao@gmail.com"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/SSQLQIANBB/common.git"
+  },
+  "bugs": {
+    "url": "https://github.com/SSQLQIANBB/common/issues"
+  },
+  "homepage": "https://github.com/SSQLQIANBB/common/blob/main/README.md",
+  "private": false,
+  "type": "module",
   "main": "./lib/index.umd.js",
   "module": "./lib/index.esm.js",
   "types": "./lib/index.d.ts",
@@ -17,10 +38,30 @@
       "require": "./lib/index.umd.js"
     }
   },
+  "files": [
+    "lib",
+    "types",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=16.0.0"
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
     "build:types": "tsc --emitDeclarationOnly",
+    "prepublishOnly": "npm run build",
+    "version:patch": "node scripts/version.js patch",
+    "version:minor": "node scripts/version.js minor",
+    "version:major": "node scripts/version.js major",
+    "publish:patch": "npm run version:patch && npm publish",
+    "publish:minor": "npm run version:minor && npm publish",
+    "publish:major": "npm run version:major && npm publish",
     "example:install": "pnpm install --filter personal-utils-example",
     "example:dev": "pnpm dev --filter personal-utils-example",
     "example:build": "pnpm build --filter personal-utils-example",
@@ -35,5 +76,7 @@
   },
   "dependencies": {
     "axios": "^1.11.0"
-  }
+  },
+  "peerDependencies": {},
+  "peerDependenciesMeta": {}
 }

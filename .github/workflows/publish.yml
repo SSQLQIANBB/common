@@ -1,0 +1,143 @@
+name: Build and Publish to NPM
+
+on:
+  push:
+    branches:
+      - main
+    paths-ignore:
+      - '**.md'
+      - '.gitignore'
+      - 'LICENSE'
+      - '.github/**'
+      - 'example/**'
+
+jobs:
+  build-and-publish:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          registry-url: 'https://registry.npmjs.org/'
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: 8
+
+      - name: Get pnpm store directory
+        shell: bash
+        run: |
+          echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
+
+      - name: Setup pnpm cache
+        uses: actions/cache@v3
+        with:
+          path: ${{ env.STORE_PATH }}
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-store-
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build package
+        run: pnpm build
+
+      - name: Build types
+        run: pnpm build:types
+
+      - name: Check if package exists on NPM
+        id: check-package
+        run: |
+          if npm view @sycsq/common@latest version > /dev/null 2>&1; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+            echo "current_version=$(npm view @sycsq/common@latest version)" >> $GITHUB_OUTPUT
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+            echo "current_version=0.0.0" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Update version if needed
+        id: update-version
+        run: |
+          if [ "${{ steps.check-package.exists }}" = "true" ]; then
+            # 包已存在，检查是否需要更新版本
+            current_npm_version="${{ steps.check-package.current_version }}"
+            local_version=$(node -p "require('./package.json').version")
+            
+            if [ "$current_npm_version" = "$local_version" ]; then
+              # 版本相同，增加patch版本
+              node scripts/version.js patch
+              new_version=$(node -p "require('./package.json').version")
+              echo "new_version=$new_version" >> $GITHUB_OUTPUT
+              echo "version_updated=true" >> $GITHUB_OUTPUT
+            else
+              echo "new_version=$local_version" >> $GITHUB_OUTPUT
+              echo "version_updated=false" >> $GITHUB_OUTPUT
+            fi
+          else
+            # 包不存在，使用当前版本
+            echo "new_version=$(node -p "require('./package.json').version")" >> $GITHUB_OUTPUT
+            echo "version_updated=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Commit version update
+        if: steps.update-version.outputs.version_updated == 'true'
+        run: |
+          git config --local user.email "121@github.com"
+          git config --local user.name "GitHub Action"
+          git add package.json
+          git commit -m "chore: bump version to ${{ steps.update-version.outputs.new_version }} [skip ci]"
+          git push
+
+      - name: Publish to NPM
+        run: pnpm publish --no-git-checks --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Create Git tag
+        if: steps.update-version.outputs.version_updated == 'true'
+        run: |
+          git tag v${{ steps.update-version.outputs.new_version }}
+          git push origin v${{ steps.update-version.outputs.new_version }}
+
+      - name: Create Release
+        if: steps.update-version.outputs.version_updated == 'true'
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: v${{ steps.update-version.outputs.new_version }}
+          release_name: Release v${{ steps.update-version.outputs.new_version }}
+          body: |
+            ## 🚀 新版本发布
+
+            **版本**: v${{ steps.update-version.outputs.new_version }}
+            **提交**: ${{ github.sha }}
+            **分支**: ${{ github.ref_name }}
+
+            ### 📦 自动构建内容
+            - ✅ TypeScript 编译
+            - ✅ Vite 构建
+            - ✅ 类型声明生成
+            - ✅ NPM 发布
+
+            ### 🔄 变更
+            - 自动版本更新
+            - 构建优化
+            - 类型支持完善
+
+            ---
+
+            *此版本由 GitHub Actions 自动发布*
+          draft: false
+          prerelease: false

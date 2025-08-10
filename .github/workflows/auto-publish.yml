@@ -1,0 +1,96 @@
+name: Auto Publish to NPM
+
+on:
+  push:
+    branches:
+      - main
+    paths-ignore:
+      - '**.md'
+      - '.gitignore'
+      - 'LICENSE'
+      - '.github/**'
+      - 'example/**'
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          registry-url: 'https://registry.npmjs.org/'
+          
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: 8
+          
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+        
+      - name: Build package
+        run: pnpm build
+        
+      - name: Build types
+        run: pnpm build:types
+        
+      - name: Auto bump version
+        id: bump-version
+        run: |
+          # 获取当前NPM上的最新版本
+          if npm view @sycsq/common@latest version > /dev/null 2>&1; then
+            npm_version=$(npm view @sycsq/common@latest version)
+            echo "npm_version=$npm_version" >> $GITHUB_OUTPUT
+            
+            # 比较版本，如果相同则增加patch版本
+            local_version=$(node -p "require('./package.json').version")
+            if [ "$npm_version" = "$local_version" ]; then
+              node scripts/version.js patch
+              new_version=$(node -p "require('./package.json').version")
+              echo "version_bumped=true" >> $GITHUB_OUTPUT
+              echo "new_version=$new_version" >> $GITHUB_OUTPUT
+            else
+              echo "version_bumped=false" >> $GITHUB_OUTPUT
+              echo "new_version=$local_version" >> $GITHUB_OUTPUT
+            fi
+          else
+            echo "version_bumped=false" >> $GITHUB_OUTPUT
+            echo "new_version=$(node -p "require('./package.json').version")" >> $GITHUB_OUTPUT
+          fi
+          
+      - name: Publish to NPM
+        run: pnpm publish --no-git-checks --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          
+      - name: Create Release
+        if: steps.bump-version.outputs.version_bumped == 'true'
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: v${{ steps.bump-version.outputs.new_version }}
+          release_name: 🚀 Release v${{ steps.bump-version.outputs.new_version }}
+          body: |
+            ## 🎉 自动发布
+            
+            **版本**: v${{ steps.bump-version.outputs.new_version }}
+            **提交**: ${{ github.sha }}
+            **时间**: ${{ github.event.head_commit.timestamp }}
+            
+            ### 📦 构建内容
+            - ✅ TypeScript 编译完成
+            - ✅ Vite 构建完成  
+            - ✅ 类型声明生成
+            - ✅ NPM 发布成功
+            
+            ---
+            
+            *此版本由 GitHub Actions 自动发布*
+          draft: false
+          prerelease: false 
