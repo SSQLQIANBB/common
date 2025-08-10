@@ -1,22 +1,49 @@
-// export class AxiosCanceler {
-//   private pendingMap: Map<string, AbortController> = new Map();
+import axios, { type AxiosRequestConfig, type Canceler } from 'axios';
 
-//   addPending(config: any) {
-//     this.removePending(config);
-//     const controller = new AbortController();
-    
-//   }
+import { isFunction } from '../utils';
 
-//   removePending(config: any) {
-//     const url = this.getPendingUrl(config);
-//     if (this.pendingMap.has(url)) {
-//       const controller = this.pendingMap.get(url);
-//       controller.abort();
-//       this.pendingMap.delete(url);
-//     }
-//   }
+let pendingMap = new Map<string, Canceler>();
 
-//   getPendingUrl(config: any) {
-//     return [config.method, config.url].join('&');
-//   }
-// }
+export const getPendingUrl = (config: AxiosRequestConfig) => [config.method, config.url].join('&');
+
+export class AxiosCanceler {
+  addPending(config: AxiosRequestConfig) {
+    this.removePending(config);
+
+    let url = getPendingUrl(config);
+
+    url = url.split('?')[0];
+    config.cancelToken =
+      config.cancelToken ||
+      new axios.CancelToken((cancel: Canceler) => {
+        if (!pendingMap.has(url)) {
+          pendingMap.set(url, cancel);
+        }
+      });
+  }
+
+  removePending(config: AxiosRequestConfig) {
+    let url = getPendingUrl(config);
+
+    url = url?.split('?')[0];
+    if (pendingMap.has(url)) {
+      const cancel = pendingMap.get(url);
+
+      cancel && isFunction(cancel) && cancel(url);
+
+      pendingMap.delete(url);
+    }
+  }
+
+  removeAllPending() {
+    pendingMap.forEach(cancel => {
+      cancel && isFunction(cancel) && cancel();
+    });
+
+    pendingMap.clear();
+  }
+
+  reset(): void {
+    pendingMap = new Map<string, Canceler>();
+  }
+}

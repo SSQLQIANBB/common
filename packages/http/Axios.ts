@@ -34,7 +34,7 @@ export enum RequestEnum {
 
 const isFunction = (v: any): boolean => typeof v === 'function';
 
-export class VAxios {
+export class Axios {
   private axiosInstance: AxiosInstance;
 
   private readonly options: CreateAxiosOptions;

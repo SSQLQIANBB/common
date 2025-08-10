@@ -13,7 +13,7 @@ export declare enum RequestEnum {
     PUT = "PUT",
     DELETE = "DELETE"
 }
-export declare class VAxios {
+export declare class Axios {
     private axiosInstance;
     private readonly options;
     constructor(options: CreateAxiosOptions);
