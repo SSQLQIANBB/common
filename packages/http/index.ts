@@ -40,3 +40,5 @@ function createAxios() {
 }
 
 export const http = createAxios();
+
+export const request = http.request.bind(http);

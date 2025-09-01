@@ -35,7 +35,7 @@
 
 <script setup lang="ts">
   import { ref } from 'vue';
-  import { http } from 'personal-utils';
+  import { http } from '@sycsq/common';
 
   const httpResult = ref<any>(null);
 
