@@ -9,7 +9,7 @@
   },
   "dependencies": {
     "vue": "^3.4.0",
-    "personal-utils": "workspace:*"
+    "@sycsq/common": "workspace:*"
   },
   "devDependencies": {
     "@vitejs/plugin-vue": "^4.5.0",
