@@ -1,6 +1,6 @@
 {
   "name": "@sycsq/common",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "一个基于 Vite 构建的 TypeScript 工具库，提供 HTTP 请求封装和常用工具函数，支持完整的类型声明",
   "keywords": [
     "typescript",
