@@ -5,6 +5,7 @@ on:
     branches:
       - main
     paths:
+      - '.github/workflows/auto-publish.yml'
       - 'package.json'
       - 'pnpm-lock.yaml'
       - 'tsconfig.json'
@@ -50,6 +51,23 @@ jobs:
       - name: Build package
         run: pnpm build
 
+      - name: Verify NPM authentication
+        run: |
+          npm_user=$(npm whoami)
+          echo "Authenticated npm user: $npm_user"
+
+          if npm view @sycsq/common@latest version > /dev/null 2>&1; then
+            owners=$(npm owner ls @sycsq/common)
+            echo "$owners"
+
+            if ! echo "$owners" | grep -Eq "^${npm_user} "; then
+              echo "::error::NPM_TOKEN belongs to '$npm_user', but that user is not a maintainer of @sycsq/common. Create NPM_TOKEN from the npm account listed by 'npm owner ls @sycsq/common'."
+              exit 1
+            fi
+          fi
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
       - name: Resolve publish version
         id: version
         run: |
@@ -61,9 +79,35 @@ jobs:
             npm_version=""
           fi
 
-          if [ "$npm_version" = "$local_version" ]; then
-            node scripts/version.js patch
-            local_version=$(node -p "JSON.parse(require('fs').readFileSync('package.json', 'utf8')).version")
+          next_version=$(LOCAL_VERSION="$local_version" NPM_VERSION="$npm_version" node -e "
+            const fs = require('fs');
+            const local = process.env.LOCAL_VERSION;
+            const published = process.env.NPM_VERSION;
+            const parse = value => value.split('.').map(Number);
+            const compare = (a, b) => {
+              const left = parse(a);
+              const right = parse(b);
+              for (let index = 0; index < 3; index += 1) {
+                if (left[index] > right[index]) return 1;
+                if (left[index] < right[index]) return -1;
+              }
+              return 0;
+            };
+
+            let next = local;
+            if (published && compare(local, published) <= 0) {
+              const [major, minor, patch] = parse(published);
+              next = [major, minor, patch + 1].join('.');
+              const packageJson = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+              packageJson.version = next;
+              fs.writeFileSync('package.json', JSON.stringify(packageJson, null, 2) + '\n');
+            }
+
+            console.log(next);
+          ")
+
+          if [ "$next_version" != "$local_version" ]; then
+            local_version="$next_version"
             echo "version_bumped=true" >> "$GITHUB_OUTPUT"
           else
             echo "version_bumped=false" >> "$GITHUB_OUTPUT"
