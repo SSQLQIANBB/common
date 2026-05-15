@@ -1,327 +1,615 @@
-# Personal Utils
+# @sycsq/common
 
-一个基于 Vite 构建的 TypeScript 工具库，提供 HTTP 请求封装和常用工具函数，支持完整的类型声明。
+中文 | [English](#english)
 
-## ✨ 特性
+`@sycsq/common` 是一个基于 TypeScript 和 Vite 构建的通用工具库，提供 Axios 请求封装、请求辅助函数、请求取消管理和常用类型判断工具。
 
-- 🚀 基于 Vite 构建，支持 ES Module 和 UMD 格式
-- 📦 完整的 TypeScript 类型支持
-- 🔧 封装的 HTTP 请求工具，基于 Axios
-- 🛠️ 丰富的工具函数集合
-- 📱 支持浏览器和 Node.js 环境
-- 🎯 零配置，开箱即用
+## 特性
 
-## 📦 安装
+- TypeScript 类型声明
+- 基于 Axios 的 HTTP 客户端封装
+- 支持请求/响应转换钩子
+- 支持重复请求取消、时间戳参数、日期参数格式化
+- 支持 ESM 和 UMD 构建产物
+- 包含 Vitest 单元测试和 GitHub Actions 自动化检查
+
+## 环境要求
+
+- Node.js `^20.19.0 || >=22.12.0`
+- pnpm `>= 7`
+
+## 安装
 
 ```bash
 npm install @sycsq/common
-# 或
+```
+
+```bash
 yarn add @sycsq/common
-# 或
+```
+
+```bash
 pnpm add @sycsq/common
 ```
 
-## 🚀 快速开始
+## 快速开始
 
-### HTTP 工具使用
+### 按需引入
+
+推荐在业务项目中优先使用子路径引入，避免因为根入口同时暴露 HTTP 和工具函数而让打包器分析更多模块：
+
+```typescript
+import { isEmpty, isString } from '@sycsq/common/utils';
+import { http } from '@sycsq/common/http';
+import { joinTimestamp } from '@sycsq/common/http/helper';
+```
+
+包本身已配置 `sideEffects: false`，并提供独立的 ESM/CJS 子路径产物。`axios` 会作为外部运行时依赖处理，库构建不会把 Axios 打进产物。
+
+### HTTP 请求
 
 ```typescript
 import { http } from '@sycsq/common';
 
-// GET 请求
-const getData = async () => {
-  try {
-    const response = await http.get('/api/users');
-    console.log(response.data);
-  } catch (error) {
-    console.error('请求失败:', error);
-  }
-};
+const users = await http.get('/api/users', {
+  params: { page: 1 }
+});
 
-// POST 请求
-const createUser = async (userData: any) => {
-  try {
-    const response = await http.post('/api/users', userData);
-    console.log('用户创建成功:', response.data);
-  } catch (error) {
-    console.error('创建失败:', error);
-  }
-};
+const created = await http.post('/api/users', {
+  name: 'Alice'
+});
 ```
 
-### 工具函数使用
+也可以使用配置对象形式：
 
 ```typescript
-import { isString, isEmpty, isUrl } from '@sycsq/common';
+import { request } from '@sycsq/common';
 
-// 类型检查
-console.log(isString('hello')); // true
-console.log(isString(123)); // false
-
-// 空值检查
-console.log(isEmpty('')); // true
-console.log(isEmpty([])); // true
-console.log(isEmpty({})); // true
-
-// URL 验证
-console.log(isUrl('https://example.com')); // true
-console.log(isUrl('not-a-url')); // false
+const result = await request({
+  url: '/api/users',
+  method: 'GET',
+  params: { page: 1 }
+});
 ```
 
-## 📚 API 文档
+### 工具函数
 
-### HTTP 模块
+```typescript
+import { isEmpty, isString, isUrl } from '@sycsq/common';
 
-#### 配置选项
+isString('hello'); // true
+isEmpty({}); // true
+isUrl('https://example.com'); // true
+```
+
+## 导出内容
+
+根入口会继续导出全部公共 API，兼容已有用法：
+
+```typescript
+import {
+  Axios,
+  AxiosCanceler,
+  axiosTransform,
+  http,
+  request,
+  isString,
+  isEmpty,
+  joinTimestamp,
+  setObjToUrlParams
+} from '@sycsq/common';
+```
+
+## HTTP API
+
+### 默认实例
+
+```typescript
+import { http, request } from '@sycsq/common';
+```
+
+- `http`：默认 Axios 封装实例
+- `request`：`http.request.bind(http)` 的快捷导出
+
+### 请求方法
+
+每个方法都支持配置对象形式；常用方法也支持 URL 优先形式。
+
+```typescript
+http.request<T>(config, options?)
+http.get<T>(config, options?)
+http.get<T>(url, config?, options?)
+http.post<T>(config, options?)
+http.post<T>(url, data?, config?, options?)
+http.put<T>(config, options?)
+http.put<T>(url, data?, config?, options?)
+http.delete<T>(config, options?)
+http.delete<T>(url, config?, options?)
+http.patch<T>(config, options?)
+http.patch<T>(url, data?, config?, options?)
+```
+
+### 创建自定义实例
+
+```typescript
+import { Axios, ContentTypeEnum, axiosTransform } from '@sycsq/common';
+
+const api = new Axios({
+  baseURL: 'https://api.example.com',
+  timeout: 10000,
+  headers: {
+    'Content-Type': ContentTypeEnum.JSON
+  },
+  transform: axiosTransform,
+  requestOptions: {
+    joinPrefix: false,
+    isReturnNativeResponse: false,
+    isTransformResponse: true,
+    joinParamsToUrl: false,
+    formatDate: true,
+    apiUrl: '',
+    urlPrefix: '',
+    joinTime: true,
+    ignoreCancelToken: true,
+    withToken: true
+  }
+});
+```
+
+### RequestOptions
 
 ```typescript
 interface RequestOptions {
-  joinPrefix?: boolean; // 是否添加 URL 前缀
-  isReturnNativeResponse?: boolean; // 是否返回原生响应
-  isTransformResponse?: boolean; // 是否转换响应数据
-  joinParamsToUrl?: boolean; // POST 请求是否将参数添加到 URL
-  formatDate?: boolean; // 是否格式化日期参数
-  apiUrl?: string; // API 基础地址
-  urlPrefix?: string; // URL 前缀
-  joinTime?: boolean; // 是否添加时间戳
-  ignoreCancelToken?: boolean; // 是否忽略重复请求
-  withToken?: boolean; // 是否携带 Token
+  joinParamsToUrl?: boolean;
+  formatDate?: boolean;
+  isTransformResponse?: boolean;
+  isReturnNativeResponse?: boolean;
+  joinPrefix?: boolean;
+  apiUrl?: string;
+  urlPrefix?: string;
+  joinTime?: boolean;
+  ignoreCancelToken?: boolean;
+  withToken?: boolean;
+  errorHandler?: Function;
 }
 ```
 
-#### 请求方法
+### 响应转换规则
 
-- `http.get(url, config?)` - GET 请求
-- `http.post(url, data?, config?)` - POST 请求
-- `http.put(url, data?, config?)` - PUT 请求
-- `http.delete(url, config?)` - DELETE 请求
-- `http.patch(url, data?, config?)` - PATCH 请求
+默认 `axiosTransform` 会根据业务响应结构处理数据：
 
-### 工具函数模块
+- `isReturnNativeResponse: true`：返回完整 Axios 响应
+- `isTransformResponse: false`：返回 `response.data`
+- 成功业务码 `200` 或 `202`：返回 `data`，如果 `data` 为 `undefined` 则返回 `body`
+- 失败业务码：调用 `errorHandler` 或输出错误信息，并抛出错误
 
-#### 类型检查函数
+### 辅助函数
 
-- `is(val, type)` - 检查值是否为指定类型
-- `isString(val)` - 检查是否为字符串
-- `isNumber(val)` - 检查是否为数字
-- `isBoolean(val)` - 检查是否为布尔值
-- `isObject(val)` - 检查是否为对象
-- `isArray(val)` - 检查是否为数组
-- `isFunction(val)` - 检查是否为函数
-- `isDate(val)` - 检查是否为日期
-- `isPromise(val)` - 检查是否为 Promise
-- `isRegExp(val)` - 检查是否为正则表达式
-
-#### 值检查函数
-
-- `isDef(val)` - 检查是否已定义
-- `isUnDef(val)` - 检查是否未定义
-- `isNull(val)` - 检查是否为 null
-- `isEmpty(val)` - 检查是否为空值
-- `isNullOrUnDef(val)` - 检查是否为 null 或 undefined
-
-#### 环境检查函数
-
-- `isServer` - 是否为服务端环境
-- `isClient` - 是否为客户端环境
-- `isWindow(val)` - 检查是否为 Window 对象
-- `isElement(val)` - 检查是否为 DOM 元素
-- `isUrl(path)` - 检查是否为有效 URL
-
-## 🏗️ 项目结构
-
-```
-personal-utils/
-├── packages/                    # 源代码
-│   ├── index.ts               # 主入口文件
-│   ├── http/                  # HTTP 工具模块
-│   │   ├── Axios.ts          # Axios 封装类
-│   │   ├── axiosTransform.ts # 请求/响应转换器
-│   │   ├── axiosCancel.ts    # 请求取消处理
-│   │   ├── helper.ts         # 辅助函数
-│   │   ├── types.ts          # 类型定义
-│   │   └── index.ts          # HTTP 模块入口
-│   └── utils/                # 工具函数模块
-│       └── index.ts          # 工具函数集合
-├── lib/                       # 构建输出
-│   ├── index.esm.js          # ES 模块格式
-│   ├── index.umd.js          # UMD 格式
-│   └── index.d.ts            # 类型声明
-├── types/                     # 类型声明文件
-├── example/                   # Vue 3 示例项目
-├── pnpm-workspace.yaml       # pnpm workspace 配置
-└── package.json               # 项目配置
+```typescript
+joinTimestamp(join, restful)
+formatRequestDate(params)
+setObjToUrlParams(baseUrl, obj)
 ```
 
-## 🛠️ 开发
+### 请求取消
 
-### 环境要求
+```typescript
+import { AxiosCanceler } from '@sycsq/common';
 
-- Node.js >= 16
-- pnpm >= 7
+const canceler = new AxiosCanceler();
 
-### 安装依赖
+canceler.addPending(config);
+canceler.removePending(config);
+canceler.removeAllPending();
+canceler.reset();
+```
+
+## 工具函数 API
+
+### 类型判断
+
+- `is(val, type)`
+- `isString(val)`
+- `isNumber(val)`
+- `isBoolean(val)`
+- `isObject(val)`
+- `isArray(val)`
+- `isFunction(val)`
+- `isDate(val)`
+- `isPromise(val)`
+- `isRegExp(val)`
+- `isSymbol(val)`
+
+### 值判断
+
+- `isDef(val)`
+- `isUnDef(val)`
+- `isNull(val)`
+- `isNullAndUnDef(val)`
+- `isNullOrUnDef(val)`
+- `isEmpty(val)`
+
+### 环境与 DOM 判断
+
+- `isServer`
+- `isClient`
+- `isWindow(val)`
+- `isElement(val)`
+- `isUrl(path)`
+
+## 开发
 
 ```bash
 pnpm install
 ```
 
-### 开发命令
-
 ```bash
-# 构建库
-pnpm build
-
-# 仅构建类型声明
-pnpm build:types
-
-# 开发模式
-pnpm dev
-
-# 启动示例项目
-pnpm example:dev
-
-# 一键设置（推荐）
-pnpm example:setup
+pnpm test
 ```
 
-### 示例项目
-
-项目包含一个完整的 Vue 3 示例，展示如何使用库中的功能：
+```bash
+pnpm build
+```
 
 ```bash
-# 启动示例项目
+pnpm build:types
+```
+
+## 示例项目
+
+仓库包含一个 Vue 示例项目：
+
+```bash
 pnpm example:dev
-
-# 构建示例项目
 pnpm example:build
-
-# 预览构建结果
 pnpm example:preview
 ```
 
-## 📝 类型支持
+## 自动化
 
-本库提供完整的 TypeScript 类型支持，包括：
+项目包含两个 GitHub Actions 工作流：
 
-- 所有工具函数的类型定义
-- HTTP 请求配置的类型定义
-- 响应数据的类型定义
-- 完整的 IntelliSense 支持
+- `CI`：在 pull request 和 `main` 分支 push 时执行 `pnpm install --frozen-lockfile`、`pnpm test` 和 `pnpm build`
+- `Publish Package`：在 `main` 分支相关源码变更或手动触发时执行测试、构建、npm 发布和 GitHub Release 创建
 
-## 🤝 贡献
+发布到 npm 需要在仓库的 `Settings -> Secrets and variables -> Actions` 中配置：
 
-欢迎提交 Issue 和 Pull Request！
+- `NPM_TOKEN`：npm automation token，需要具备发布 `@sycsq/common` 的权限
 
-## 📄 许可证
+## 构建体积策略
 
-MIT License
+- 多入口构建：`index`、`http`、`utils` 和细粒度 HTTP 子模块分别输出
+- 依赖外部化：`axios` 不会被打入库产物，避免宿主项目重复打包
+- 移除额外运行时依赖：form-urlencoded 序列化由轻量内置实现完成
+- 禁用 public 目录复制，npm 包只包含运行所需文件
+- 使用 ESM + CJS 双格式，并通过 `exports` 暴露子路径入口
 
-## 🔗 相关链接
+## 项目结构
 
-- [Vite](https://vitejs.dev/) - 构建工具
-- [Axios](https://axios-http.com/) - HTTP 客户端
-- [TypeScript](https://www.typescriptlang.org/) - 编程语言
-
-
-
-# GitHub Actions 自动发布配置
-
-本项目配置了 GitHub Actions 工作流，实现提交到 main 分支时自动构建和发布到 NPM。
-
-## 🚀 工作流说明
-
-### 触发条件
-- 推送到 `main` 分支
-- 忽略以下文件的变更：
-  - `*.md` 文件
-  - `.gitignore`
-  - `LICENSE`
-  - `.github/**`
-  - `example/**`
-
-### 执行步骤
-1. **检出代码** - 获取最新代码
-2. **设置环境** - 配置 Node.js 18 和 pnpm 8
-3. **安装依赖** - 使用 pnpm 安装项目依赖
-4. **构建项目** - 执行 TypeScript 编译和 Vite 构建
-5. **生成类型** - 生成 TypeScript 类型声明文件
-6. **版本管理** - 自动检查并更新版本号
-7. **发布到 NPM** - 自动发布到 npm 仓库
-8. **创建 Release** - 在 GitHub 上创建发布版本
-
-## ⚙️ 环境变量配置
-
-### 必需的环境变量
-
-在 GitHub 仓库的 Settings → Secrets and variables → Actions 中添加以下密钥：
-
-#### `NPM_TOKEN`
-- **获取方式**: 在 [npmjs.com](https://www.npmjs.com/) 登录后，进入 Profile → Access Tokens
-- **权限**: 选择 "Automation" 类型，确保有发布权限
-- **用途**: 用于自动发布包到 NPM
-
-### 自动提供的环境变量
-
-- `GITHUB_TOKEN` - GitHub 自动提供，用于创建 Release
-
-## 🔧 手动发布命令
-
-如果需要在本地手动发布，可以使用以下命令：
-
-```bash
-# 增加 patch 版本并发布
-pnpm publish:patch
-
-# 增加 minor 版本并发布  
-pnpm publish:minor
-
-# 增加 major 版本并发布
-pnpm publish:major
-
-# 仅更新版本号
-pnpm version:patch
-pnpm version:minor
-pnpm version:major
+```text
+.
+├── .github/workflows/      # GitHub Actions workflows
+├── example/                # Vue example
+├── packages/               # Source code
+│   ├── http/               # HTTP wrapper and helpers
+│   ├── utils/              # Utility functions
+│   └── index.ts            # Package entry
+├── tests/                  # Unit tests
+├── types/                  # Generated declaration files
+├── package.json
+├── pnpm-lock.yaml
+├── tsconfig.json
+└── vite.config.ts
 ```
 
-## 📋 版本管理规则
+## 许可证
 
-- **首次发布**: 使用 `package.json` 中的初始版本
-- **后续发布**: 如果本地版本与 NPM 版本相同，自动增加 patch 版本
-- **版本格式**: 遵循语义化版本 (SemVer) 规范
+MIT
 
-## 🚨 注意事项
+---
 
-1. **权限检查**: 确保 GitHub Actions 有足够的权限访问仓库
-2. **NPM 权限**: 确保 NPM_TOKEN 有发布 `@sycsq/common` 包的权限
-3. **版本冲突**: 避免手动修改版本号，让工作流自动管理
-4. **构建失败**: 如果构建失败，检查依赖和构建配置
+## English
 
-## 🔍 故障排除
+`@sycsq/common` is a TypeScript utility library built with Vite. It provides an Axios-based HTTP wrapper, request helpers, request cancellation management, and common type guard utilities.
 
-### 常见问题
+## Features
 
-1. **构建失败**
-   - 检查 `pnpm install` 是否成功
-   - 验证 TypeScript 配置
-   - 检查 Vite 构建配置
+- TypeScript declaration files
+- Axios-based HTTP client wrapper
+- Request and response transform hooks
+- Duplicate request cancellation, timestamp parameters, and date parameter formatting
+- ESM and UMD build outputs
+- Vitest unit tests and GitHub Actions automation
 
-2. **发布失败**
-   - 验证 NPM_TOKEN 是否正确
-   - 检查包名是否可用
-   - 确认版本号是否冲突
+## Requirements
 
-3. **权限问题**
-   - 检查 GitHub Actions 权限设置
-   - 验证 NPM 账户权限
+- Node.js `^20.19.0 || >=22.12.0`
+- pnpm `>= 7`
 
-### 查看日志
+## Installation
 
-在 GitHub 仓库的 Actions 标签页中查看工作流执行日志，定位具体问题。
+```bash
+npm install @sycsq/common
+```
 
-## 📚 相关链接
+```bash
+yarn add @sycsq/common
+```
 
-- [GitHub Actions 文档](https://docs.github.com/en/actions)
-- [NPM 发布指南](https://docs.npmjs.com/cli/v8/commands/npm-publish)
-- [语义化版本](https://semver.org/) 
+```bash
+pnpm add @sycsq/common
+```
+
+## Quick Start
+
+### On-demand Imports
+
+Prefer subpath imports in application projects so bundlers only need to analyze the module family you actually use:
+
+```typescript
+import { isEmpty, isString } from '@sycsq/common/utils';
+import { http } from '@sycsq/common/http';
+import { joinTimestamp } from '@sycsq/common/http/helper';
+```
+
+The package is marked with `sideEffects: false` and ships independent ESM/CJS subpath outputs. `axios` is treated as an external runtime dependency, so it is not bundled into the library output.
+
+### HTTP Requests
+
+```typescript
+import { http } from '@sycsq/common';
+
+const users = await http.get('/api/users', {
+  params: { page: 1 }
+});
+
+const created = await http.post('/api/users', {
+  name: 'Alice'
+});
+```
+
+You can also use the config-object form:
+
+```typescript
+import { request } from '@sycsq/common';
+
+const result = await request({
+  url: '/api/users',
+  method: 'GET',
+  params: { page: 1 }
+});
+```
+
+### Utility Functions
+
+```typescript
+import { isEmpty, isString, isUrl } from '@sycsq/common';
+
+isString('hello'); // true
+isEmpty({}); // true
+isUrl('https://example.com'); // true
+```
+
+## Exports
+
+The root entry still re-exports every public API for backward compatibility:
+
+```typescript
+import {
+  Axios,
+  AxiosCanceler,
+  axiosTransform,
+  http,
+  request,
+  isString,
+  isEmpty,
+  joinTimestamp,
+  setObjToUrlParams
+} from '@sycsq/common';
+```
+
+## HTTP API
+
+### Default Instance
+
+```typescript
+import { http, request } from '@sycsq/common';
+```
+
+- `http`: default wrapped Axios instance
+- `request`: shortcut for `http.request.bind(http)`
+
+### Request Methods
+
+Every method supports the config-object form. Common methods also support the URL-first form.
+
+```typescript
+http.request<T>(config, options?)
+http.get<T>(config, options?)
+http.get<T>(url, config?, options?)
+http.post<T>(config, options?)
+http.post<T>(url, data?, config?, options?)
+http.put<T>(config, options?)
+http.put<T>(url, data?, config?, options?)
+http.delete<T>(config, options?)
+http.delete<T>(url, config?, options?)
+http.patch<T>(config, options?)
+http.patch<T>(url, data?, config?, options?)
+```
+
+### Custom Instance
+
+```typescript
+import { Axios, ContentTypeEnum, axiosTransform } from '@sycsq/common';
+
+const api = new Axios({
+  baseURL: 'https://api.example.com',
+  timeout: 10000,
+  headers: {
+    'Content-Type': ContentTypeEnum.JSON
+  },
+  transform: axiosTransform,
+  requestOptions: {
+    joinPrefix: false,
+    isReturnNativeResponse: false,
+    isTransformResponse: true,
+    joinParamsToUrl: false,
+    formatDate: true,
+    apiUrl: '',
+    urlPrefix: '',
+    joinTime: true,
+    ignoreCancelToken: true,
+    withToken: true
+  }
+});
+```
+
+### RequestOptions
+
+```typescript
+interface RequestOptions {
+  joinParamsToUrl?: boolean;
+  formatDate?: boolean;
+  isTransformResponse?: boolean;
+  isReturnNativeResponse?: boolean;
+  joinPrefix?: boolean;
+  apiUrl?: string;
+  urlPrefix?: string;
+  joinTime?: boolean;
+  ignoreCancelToken?: boolean;
+  withToken?: boolean;
+  errorHandler?: Function;
+}
+```
+
+### Response Transform Behavior
+
+The default `axiosTransform` processes business responses as follows:
+
+- `isReturnNativeResponse: true`: returns the full Axios response
+- `isTransformResponse: false`: returns `response.data`
+- Success codes `200` or `202`: returns `data`; if `data` is `undefined`, returns `body`
+- Failed business codes: calls `errorHandler` or logs the error, then throws
+
+### Helpers
+
+```typescript
+joinTimestamp(join, restful)
+formatRequestDate(params)
+setObjToUrlParams(baseUrl, obj)
+```
+
+### Request Cancellation
+
+```typescript
+import { AxiosCanceler } from '@sycsq/common';
+
+const canceler = new AxiosCanceler();
+
+canceler.addPending(config);
+canceler.removePending(config);
+canceler.removeAllPending();
+canceler.reset();
+```
+
+## Utility API
+
+### Type Guards
+
+- `is(val, type)`
+- `isString(val)`
+- `isNumber(val)`
+- `isBoolean(val)`
+- `isObject(val)`
+- `isArray(val)`
+- `isFunction(val)`
+- `isDate(val)`
+- `isPromise(val)`
+- `isRegExp(val)`
+- `isSymbol(val)`
+
+### Value Guards
+
+- `isDef(val)`
+- `isUnDef(val)`
+- `isNull(val)`
+- `isNullAndUnDef(val)`
+- `isNullOrUnDef(val)`
+- `isEmpty(val)`
+
+### Environment and DOM Guards
+
+- `isServer`
+- `isClient`
+- `isWindow(val)`
+- `isElement(val)`
+- `isUrl(path)`
+
+## Development
+
+```bash
+pnpm install
+```
+
+```bash
+pnpm test
+```
+
+```bash
+pnpm build
+```
+
+```bash
+pnpm build:types
+```
+
+## Example Project
+
+The repository includes a Vue example project:
+
+```bash
+pnpm example:dev
+pnpm example:build
+pnpm example:preview
+```
+
+## Automation
+
+This project includes two GitHub Actions workflows:
+
+- `CI`: runs `pnpm install --frozen-lockfile`, `pnpm test`, and `pnpm build` on pull requests and pushes to `main`
+- `Publish Package`: runs tests, builds the package, publishes to npm, and creates a GitHub Release on relevant `main` branch changes or manual dispatch
+
+Publishing to npm requires this repository secret under `Settings -> Secrets and variables -> Actions`:
+
+- `NPM_TOKEN`: an npm automation token with permission to publish `@sycsq/common`
+
+## Bundle Size Strategy
+
+- Multi-entry build: `index`, `http`, `utils`, and fine-grained HTTP submodules are emitted separately
+- Externalized dependency: `axios` is not bundled into the package output, preventing duplicate vendor code in host projects
+- Removed extra runtime dependency: form-urlencoded serialization uses a lightweight internal implementation
+- Public asset copying is disabled, so the npm package only includes runtime files
+- ESM and CJS outputs are both exposed through package `exports`
+
+## Project Structure
+
+```text
+.
+├── .github/workflows/      # GitHub Actions workflows
+├── example/                # Vue example
+├── packages/               # Source code
+│   ├── http/               # HTTP wrapper and helpers
+│   ├── utils/              # Utility functions
+│   └── index.ts            # Package entry
+├── tests/                  # Unit tests
+├── types/                  # Generated declaration files
+├── package.json
+├── pnpm-lock.yaml
+├── tsconfig.json
+└── vite.config.ts
+```
+
+## License
+
+MIT

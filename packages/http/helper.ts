@@ -37,9 +37,14 @@ export function formatRequestDate(params: Recordable) {
 }
 
 export function setObjToUrlParams(baseUrl: string, obj: any): string {
-  let parameters = '';
-  for (const key in obj) parameters += `${key}=${encodeURIComponent(obj[key])}&`;
+  const parameters = Object.entries(obj || {})
+    .filter(([, value]) => value !== undefined && value !== null)
+    .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(String(value))}`)
+    .join('&');
 
-  parameters = parameters.replace(/&$/, '');
-  return /\?$/.test(baseUrl) ? baseUrl + parameters : baseUrl.replace(/\/?$/, '?') + parameters;
+  if (!parameters) return baseUrl;
+
+  if (/[?&]$/.test(baseUrl)) return baseUrl + parameters;
+
+  return `${baseUrl}${baseUrl.includes('?') ? '&' : '?'}${parameters}`;
 }

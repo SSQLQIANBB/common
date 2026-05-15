@@ -16,8 +16,8 @@ export function isObject(val: any): val is Record<any, any> {
   return val !== null && is(val, 'Object');
 }
 
-export function isSymbol(val: any): val is Symbol {
-  return is(val, 'Symbol');
+export function isSymbol(val: any): val is symbol {
+  return typeof val === 'symbol';
 }
 
 export function isEmpty<T = unknown>(val: T): val is T {
@@ -39,7 +39,7 @@ export function isNull(val: unknown): val is null {
 }
 
 export function isNullAndUnDef(val: unknown): val is null | undefined {
-  return isUnDef(val) && isNull(val);
+  return isUnDef(val) || isNull(val);
 }
 
 export function isNullOrUnDef(val: unknown): val is null | undefined {
@@ -51,7 +51,7 @@ export function isNumber(val: unknown): val is number {
 }
 
 export function isPromise<T = any>(val: unknown): val is Promise<T> {
-  return is(val, 'Promise') && isObject(val) && isFunction(val.then) && isFunction(val.catch);
+  return !!val && (is(val, 'Promise') || isObject(val)) && isFunction((val as Promise<T>).then) && isFunction((val as Promise<T>).catch);
 }
 
 export function isString(val: unknown): val is string {
@@ -71,7 +71,7 @@ export function isRegExp(val: unknown): val is RegExp {
 }
 
 export function isArray(val: any): val is Array<any> {
-  return val && Array.isArray(val);
+  return Array.isArray(val);
 }
 
 export function isWindow(val: any): val is Window {
@@ -79,7 +79,7 @@ export function isWindow(val: any): val is Window {
 }
 
 export function isElement(val: unknown): val is Element {
-  return isObject(val) && !!val.tagName;
+  return !!val && typeof (val as Element).tagName === 'string';
 }
 
 export const isServer = typeof window === 'undefined';

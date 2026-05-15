@@ -1,21 +1,8 @@
 import type { AxiosInstance, AxiosRequestConfig } from 'axios';
-type CreateAxiosOptions = any;
-type RequestOptions = any;
-export declare enum ContentTypeEnum {
-    JSON = "application/json;charset=UTF-8",
-    TEXT = "text/plain;charset=UTF-8",
-    FORM_URLENCODED = "application/x-www-form-urlencoded;charset=UTF-8",
-    FORM_DATA = "multipart/form-data;charset=UTF-8"
-}
-export declare enum RequestEnum {
-    GET = "GET",
-    POST = "POST",
-    PUT = "PUT",
-    DELETE = "DELETE"
-}
+import { type CreateAxiosOptions, type RequestOptions } from './types';
 export declare class Axios {
     private axiosInstance;
-    private readonly options;
+    private options;
     constructor(options: CreateAxiosOptions);
     /**
      * @description  create axios instance
@@ -40,12 +27,17 @@ export declare class Axios {
     supportFormData(config: AxiosRequestConfig): AxiosRequestConfig<any>;
     request<T = any>(config: AxiosRequestConfig, options?: RequestOptions): Promise<T>;
     get<T = any>(config: AxiosRequestConfig, options?: RequestOptions): Promise<T>;
+    get<T = any>(url: string, config?: AxiosRequestConfig, options?: RequestOptions): Promise<T>;
     post<T = any>(config: AxiosRequestConfig, options?: RequestOptions): Promise<T>;
+    post<T = any>(url: string, data?: any, config?: AxiosRequestConfig, options?: RequestOptions): Promise<T>;
     put<T = any>(config: AxiosRequestConfig, options?: RequestOptions): Promise<T>;
+    put<T = any>(url: string, data?: any, config?: AxiosRequestConfig, options?: RequestOptions): Promise<T>;
     delete<T = any>(config: AxiosRequestConfig, options?: RequestOptions): Promise<T>;
+    delete<T = any>(url: string, config?: AxiosRequestConfig, options?: RequestOptions): Promise<T>;
+    patch<T = any>(config: AxiosRequestConfig, options?: RequestOptions): Promise<T>;
+    patch<T = any>(url: string, data?: any, config?: AxiosRequestConfig, options?: RequestOptions): Promise<T>;
     /**
      * @description Interceptor configuration
      */
     private setupInterceptors;
 }
-export {};

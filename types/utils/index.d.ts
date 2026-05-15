@@ -2,7 +2,7 @@ export declare function is(val: unknown, type: string): boolean;
 export declare function isDef<T = unknown>(val?: T): val is T;
 export declare function isUnDef<T = unknown>(val?: T): val is T;
 export declare function isObject(val: any): val is Record<any, any>;
-export declare function isSymbol(val: any): val is Symbol;
+export declare function isSymbol(val: any): val is symbol;
 export declare function isEmpty<T = unknown>(val: T): val is T;
 export declare function isDate(val: unknown): val is Date;
 export declare function isNull(val: unknown): val is null;

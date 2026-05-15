@@ -7,37 +7,49 @@ import type {
   InternalAxiosRequestConfig
 } from 'axios';
 import axios from 'axios';
-// import { AxiosCanceler } from './axiosCancel';
-import qs from 'qs';
-
-type CreateAxiosOptions = any;
-type RequestOptions = any;
-type Result = any;
-
-export enum ContentTypeEnum {
-  // json
-  JSON = 'application/json;charset=UTF-8',
-  // text
-  TEXT = 'text/plain;charset=UTF-8',
-  // form-data qs
-  FORM_URLENCODED = 'application/x-www-form-urlencoded;charset=UTF-8',
-  // form-data  upload
-  FORM_DATA = 'multipart/form-data;charset=UTF-8'
-}
-
-export enum RequestEnum {
-  GET = 'GET',
-  POST = 'POST',
-  PUT = 'PUT',
-  DELETE = 'DELETE'
-}
+import { AxiosCanceler } from './axiosCancel';
+import { isString } from '../utils';
+import { ContentTypeEnum, RequestEnum, type CreateAxiosOptions, type RequestOptions, type Result } from './types';
 
 const isFunction = (v: any): boolean => typeof v === 'function';
+
+function stringifyFormUrlencoded(data: unknown): string {
+  const pairs: string[] = [];
+
+  const append = (key: string, value: unknown) => {
+    if (value === undefined) return;
+
+    if (value === null) {
+      pairs.push(`${encodeURIComponent(key)}=`);
+      return;
+    }
+
+    if (Array.isArray(value)) {
+      value.forEach(item => append(`${key}[]`, item));
+      return;
+    }
+
+    if (typeof value === 'object') {
+      Object.entries(value as Record<string, unknown>).forEach(([childKey, childValue]) => {
+        append(`${key}[${childKey}]`, childValue);
+      });
+      return;
+    }
+
+    pairs.push(`${encodeURIComponent(key)}=${encodeURIComponent(String(value))}`);
+  };
+
+  if (data && typeof data === 'object') {
+    Object.entries(data as Record<string, unknown>).forEach(([key, value]) => append(key, value));
+  }
+
+  return pairs.join('&');
+}
 
 export class Axios {
   private axiosInstance: AxiosInstance;
 
-  private readonly options: CreateAxiosOptions;
+  private options: CreateAxiosOptions;
 
   constructor(options: CreateAxiosOptions) {
     this.options = options;
@@ -77,7 +89,17 @@ export class Axios {
   configAxios(config: CreateAxiosOptions) {
     if (!this.axiosInstance) return;
 
-    this.createAxios(config);
+    this.options = {
+      ...this.options,
+      ...config,
+      requestOptions: {
+        ...this.options.requestOptions,
+        ...config.requestOptions
+      },
+      transform: config.transform || this.options.transform
+    };
+    this.createAxios(this.options);
+    this.setupInterceptors();
   }
 
   /**
@@ -92,10 +114,13 @@ export class Axios {
   supportFormData(config: AxiosRequestConfig) {
     const headers = config.headers || this.options.headers;
 
-    const contentType = headers?.['Content-Type'] || headers?.['content-type'];
+    const contentType =
+      typeof headers?.get === 'function'
+        ? headers.get('Content-Type')
+        : headers?.['Content-Type'] || headers?.['content-type'];
 
     if (
-      contentType !== ContentTypeEnum.FORM_URLENCODED ||
+      !String(contentType || '').includes(ContentTypeEnum.FORM_URLENCODED) ||
       !Reflect.has(config, 'data') ||
       config.method?.toUpperCase() === RequestEnum.GET
     )
@@ -103,7 +128,7 @@ export class Axios {
 
     return {
       ...config,
-      data: qs.stringify(config.data, { arrayFormat: 'brackets' })
+      data: stringifyFormUrlencoded(config.data)
     };
   }
 
@@ -154,20 +179,88 @@ export class Axios {
     });
   }
 
-  get<T = any>(config: AxiosRequestConfig, options?: RequestOptions): Promise<T> {
-    return this.request({ ...config, method: 'GET' }, options);
+  get<T = any>(config: AxiosRequestConfig, options?: RequestOptions): Promise<T>;
+
+  get<T = any>(url: string, config?: AxiosRequestConfig, options?: RequestOptions): Promise<T>;
+
+  get<T = any>(configOrUrl: AxiosRequestConfig | string, configOrOptions?: AxiosRequestConfig | RequestOptions, options?: RequestOptions): Promise<T> {
+    const config = isString(configOrUrl)
+      ? ({ ...(configOrOptions as AxiosRequestConfig), url: configOrUrl } as AxiosRequestConfig)
+      : configOrUrl;
+    const requestOptions = isString(configOrUrl) ? options : (configOrOptions as RequestOptions);
+
+    return this.request({ ...config, method: RequestEnum.GET }, requestOptions);
   }
 
-  post<T = any>(config: AxiosRequestConfig, options?: RequestOptions): Promise<T> {
-    return this.request({ ...config, method: 'POST' }, options);
+  post<T = any>(config: AxiosRequestConfig, options?: RequestOptions): Promise<T>;
+
+  post<T = any>(url: string, data?: any, config?: AxiosRequestConfig, options?: RequestOptions): Promise<T>;
+
+  post<T = any>(
+    configOrUrl: AxiosRequestConfig | string,
+    dataOrOptions?: any,
+    config?: AxiosRequestConfig,
+    options?: RequestOptions
+  ): Promise<T> {
+    const requestConfig = isString(configOrUrl)
+      ? ({ ...config, url: configOrUrl, data: dataOrOptions } as AxiosRequestConfig)
+      : configOrUrl;
+    const requestOptions = isString(configOrUrl) ? options : (dataOrOptions as RequestOptions);
+
+    return this.request({ ...requestConfig, method: RequestEnum.POST }, requestOptions);
   }
 
-  put<T = any>(config: AxiosRequestConfig, options?: RequestOptions): Promise<T> {
-    return this.request({ ...config, method: 'PUT' }, options);
+  put<T = any>(config: AxiosRequestConfig, options?: RequestOptions): Promise<T>;
+
+  put<T = any>(url: string, data?: any, config?: AxiosRequestConfig, options?: RequestOptions): Promise<T>;
+
+  put<T = any>(
+    configOrUrl: AxiosRequestConfig | string,
+    dataOrOptions?: any,
+    config?: AxiosRequestConfig,
+    options?: RequestOptions
+  ): Promise<T> {
+    const requestConfig = isString(configOrUrl)
+      ? ({ ...config, url: configOrUrl, data: dataOrOptions } as AxiosRequestConfig)
+      : configOrUrl;
+    const requestOptions = isString(configOrUrl) ? options : (dataOrOptions as RequestOptions);
+
+    return this.request({ ...requestConfig, method: RequestEnum.PUT }, requestOptions);
   }
 
-  delete<T = any>(config: AxiosRequestConfig, options?: RequestOptions): Promise<T> {
-    return this.request({ ...config, method: 'DELETE' }, options);
+  delete<T = any>(config: AxiosRequestConfig, options?: RequestOptions): Promise<T>;
+
+  delete<T = any>(url: string, config?: AxiosRequestConfig, options?: RequestOptions): Promise<T>;
+
+  delete<T = any>(
+    configOrUrl: AxiosRequestConfig | string,
+    configOrOptions?: AxiosRequestConfig | RequestOptions,
+    options?: RequestOptions
+  ): Promise<T> {
+    const config = isString(configOrUrl)
+      ? ({ ...(configOrOptions as AxiosRequestConfig), url: configOrUrl } as AxiosRequestConfig)
+      : configOrUrl;
+    const requestOptions = isString(configOrUrl) ? options : (configOrOptions as RequestOptions);
+
+    return this.request({ ...config, method: RequestEnum.DELETE }, requestOptions);
+  }
+
+  patch<T = any>(config: AxiosRequestConfig, options?: RequestOptions): Promise<T>;
+
+  patch<T = any>(url: string, data?: any, config?: AxiosRequestConfig, options?: RequestOptions): Promise<T>;
+
+  patch<T = any>(
+    configOrUrl: AxiosRequestConfig | string,
+    dataOrOptions?: any,
+    config?: AxiosRequestConfig,
+    options?: RequestOptions
+  ): Promise<T> {
+    const requestConfig = isString(configOrUrl)
+      ? ({ ...config, url: configOrUrl, data: dataOrOptions } as AxiosRequestConfig)
+      : configOrUrl;
+    const requestOptions = isString(configOrUrl) ? options : (dataOrOptions as RequestOptions);
+
+    return this.request({ ...requestConfig, method: 'PATCH' }, requestOptions);
   }
   /**
    * @description Interceptor configuration
@@ -180,51 +273,50 @@ export class Axios {
     const { requestInterceptors, requestInterceptorsCatch, responseInterceptors, responseInterceptorsCatch } =
       transform;
 
-    // 待办：取消请求
-    // const axiosCanceler = new AxiosCanceler();
+    const axiosCanceler = new AxiosCanceler();
 
     // Request interceptor configuration process
     this.axiosInstance.interceptors.request.use(
       (config: InternalAxiosRequestConfig<any>) => {
-        const {
-          headers: { ignoreCancelToken }
-        } = config;
+        const ignoreCancelToken = config.headers?.ignoreCancelToken;
 
         const ignoreCancel =
           ignoreCancelToken !== undefined ? ignoreCancelToken : this.options.requestOptions?.ignoreCancelToken;
 
-        console.log(ignoreCancel);
-        // if (!ignoreCancel) axiosCanceler.addPending(config);
+        if (!ignoreCancel) axiosCanceler.addPending(config);
 
         if (requestInterceptors && isFunction(requestInterceptors)) {
-          config = requestInterceptors(config, this.options);
+          config = requestInterceptors(config, this.options) as InternalAxiosRequestConfig<any>;
         }
 
         return config;
       },
       (err: any) => {
         if (requestInterceptorsCatch && isFunction(requestInterceptorsCatch)) return requestInterceptorsCatch(err);
+
+        return Promise.reject(err);
       },
       {
         synchronous: false,
-        runWhen: config => {
-          console.log(config);
-          return true;
-        }
+        runWhen: () => true
       } as AxiosInterceptorOptions
     );
 
     // Response result interceptor processing
     this.axiosInstance.interceptors.response.use(
       (res: AxiosResponse<any, any>) => {
-        // if (res?.config) axiosCanceler.removePending(res.config);
+        if (res?.config) axiosCanceler.removePending(res.config);
 
         if (responseInterceptors && isFunction(responseInterceptors)) res = responseInterceptors(res);
 
         return res;
       },
       (err: any) => {
+        if (err?.config) axiosCanceler.removePending(err.config);
+
         if (responseInterceptorsCatch && isFunction(responseInterceptorsCatch)) return responseInterceptorsCatch(err);
+
+        return Promise.reject(err);
       }
     );
   }

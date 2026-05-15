@@ -7,6 +7,12 @@ import { Axios } from './Axios';
 import { axiosTransform } from './axiosTransform';
 import { ContentTypeEnum } from './types';
 
+export { Axios } from './Axios';
+export { axiosTransform } from './axiosTransform';
+export * from './axiosCancel';
+export * from './helper';
+export * from './types';
+
 function createAxios() {
   return new Axios({
     // baseURL: '',

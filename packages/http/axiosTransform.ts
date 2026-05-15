@@ -29,7 +29,7 @@ export const axiosTransform: AxiosTransform = {
     const successCodeArr: string[] = [ResultEnum.ASYNC_SUCCESS, ResultEnum.SUCCESS];
     const hasSuccess = responseData && Reflect.has(responseData, 'code') && successCodeArr.includes(code);
 
-    if (hasSuccess) return data || body;
+    if (hasSuccess) return data !== undefined ? data : body;
 
     let errorMsg = '';
 
@@ -53,7 +53,7 @@ export const axiosTransform: AxiosTransform = {
   beforeRequestHook(config, options) {
     const { apiUrl, joinPrefix, joinParamsToUrl, formatDate, joinTime = true, urlPrefix } = options;
 
-    if (joinPrefix) config.url = `${urlPrefix}${config.url}`;
+    if (joinPrefix && urlPrefix) config.url = `${urlPrefix}${config.url}`;
 
     if (apiUrl && isString(apiUrl)) config.url = `${apiUrl}${config.url}`;
 
@@ -65,6 +65,7 @@ export const axiosTransform: AxiosTransform = {
 
     if (config.method?.toUpperCase() === RequestEnum.GET) {
       if (!isString(params)) {
+        formatDate && formatRequestDate(params);
         config.params = Object.assign(params || {}, joinTimestamp(joinTime, false));
       } else {
         config.url = `${config.url}${params}${joinTimestamp(joinTime, true)}`;
@@ -90,12 +91,20 @@ export const axiosTransform: AxiosTransform = {
    * @description 请求拦截
    */
   requestInterceptors(config: CreateAxiosOptions, options): AxiosRequestConfig {
-    console.log(options);
+    void options;
     // 暂定localStorage获取token, 补充store后调整；
-    const token = localStorage.getItem('token');
+    const token =
+      typeof globalThis !== 'undefined' && 'localStorage' in globalThis
+        ? globalThis.localStorage?.getItem('token')
+        : null;
 
     if (token && config?.requestOptions?.withToken !== false) {
-      config.headers!['Authtoken'] = token;
+      config.headers = config.headers || {};
+      if ('set' in config.headers && typeof config.headers.set === 'function') {
+        config.headers.set('Authtoken', token);
+      } else {
+        config.headers['Authtoken'] = token;
+      }
     }
 
     return config;

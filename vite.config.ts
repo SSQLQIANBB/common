@@ -2,15 +2,39 @@ import { defineConfig } from 'vite';
 
 export default defineConfig({
   build: {
+    target: 'es2022',
     outDir: './lib',
+    emptyOutDir: true,
+    copyPublicDir: false,
+    minify: 'esbuild',
     rollupOptions: {
-      external: [], // 可根据需要添加外部依赖
+      external: ['axios'],
+      treeshake: {
+        moduleSideEffects: false,
+        propertyReadSideEffects: false,
+        tryCatchDeoptimization: false,
+      },
+      output: {
+        exports: 'named',
+        compact: true,
+        globals: {
+          axios: 'axios',
+        },
+      },
     },
     lib: {
-      entry: './packages/index.ts',
-      name: '@ssq/common',
-      fileName: (format) => `index.${format === 'es' ? 'esm' : format}.js`,
-      formats: ['es', 'umd'],
+      entry: {
+        index: './packages/index.ts',
+        http: './packages/http/index.ts',
+        'http/Axios': './packages/http/Axios.ts',
+        'http/axiosCancel': './packages/http/axiosCancel.ts',
+        'http/axiosTransform': './packages/http/axiosTransform.ts',
+        'http/helper': './packages/http/helper.ts',
+        'http/types': './packages/http/types.ts',
+        utils: './packages/utils/index.ts',
+      },
+      fileName: (format, entryName) => `${entryName}.${format === 'es' ? 'js' : 'cjs'}`,
+      formats: ['es', 'cjs'],
     },
   },
 });
