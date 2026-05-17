@@ -7,6 +7,7 @@ on:
     paths:
       - '.github/workflows/auto-publish.yml'
       - 'package.json'
+      - 'package-lock.json'
       - 'pnpm-lock.yaml'
       - 'tsconfig.json'
       - 'vite.config.ts'
@@ -17,6 +18,7 @@ on:
 
 permissions:
   contents: write
+  id-token: write
 
 concurrency:
   group: publish-${{ github.ref }}
@@ -25,10 +27,13 @@ concurrency:
 jobs:
   publish:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
@@ -38,7 +43,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 22.x
           cache: pnpm
           registry-url: https://registry.npmjs.org/
 
@@ -79,44 +84,68 @@ jobs:
             npm_version=""
           fi
 
-          next_version=$(LOCAL_VERSION="$local_version" NPM_VERSION="$npm_version" node -e "
-            const fs = require('fs');
-            const local = process.env.LOCAL_VERSION;
-            const published = process.env.NPM_VERSION;
-            const parse = value => value.split('.').map(Number);
-            const compare = (a, b) => {
-              const left = parse(a);
-              const right = parse(b);
-              for (let index = 0; index < 3; index += 1) {
-                if (left[index] > right[index]) return 1;
-                if (left[index] < right[index]) return -1;
-              }
-              return 0;
-            };
-
-            let next = local;
-            if (published && compare(local, published) <= 0) {
-              const [major, minor, patch] = parse(published);
-              next = [major, minor, patch + 1].join('.');
-              const packageJson = JSON.parse(fs.readFileSync('package.json', 'utf8'));
-              packageJson.version = next;
-              fs.writeFileSync('package.json', JSON.stringify(packageJson, null, 2) + '\n');
+          next_version=$(LOCAL_VERSION="$local_version" NPM_VERSION="$npm_version" node - <<'NODE'
+          const fs = require('fs');
+          const local = process.env.LOCAL_VERSION;
+          const published = process.env.NPM_VERSION;
+          const parse = value => value.split('.').map(Number);
+          const compare = (a, b) => {
+            const left = parse(a);
+            const right = parse(b);
+            for (let index = 0; index < 3; index += 1) {
+              if (left[index] > right[index]) return 1;
+              if (left[index] < right[index]) return -1;
             }
+            return 0;
+          };
 
-            console.log(next);
-          ")
+          let next = local;
+          if (published && compare(local, published) <= 0) {
+            const [major, minor, patch] = parse(published);
+            next = [major, minor, patch + 1].join('.');
+            const packageJson = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+            packageJson.version = next;
+            fs.writeFileSync('package.json', `${JSON.stringify(packageJson, null, 2)}\n`);
+
+            if (fs.existsSync('package-lock.json')) {
+              const packageLock = JSON.parse(fs.readFileSync('package-lock.json', 'utf8'));
+              packageLock.version = next;
+              if (packageLock.packages && packageLock.packages['']) {
+                packageLock.packages[''].version = next;
+              }
+              fs.writeFileSync('package-lock.json', `${JSON.stringify(packageLock, null, 2)}\n`);
+            }
+          }
+
+          console.log(next);
+          NODE
+          )
 
           if [ "$next_version" != "$local_version" ]; then
-            local_version="$next_version"
             echo "version_bumped=true" >> "$GITHUB_OUTPUT"
           else
             echo "version_bumped=false" >> "$GITHUB_OUTPUT"
           fi
 
-          echo "new_version=$local_version" >> "$GITHUB_OUTPUT"
+          echo "new_version=$next_version" >> "$GITHUB_OUTPUT"
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Commit version bump
+        if: steps.version.outputs.version_bumped == 'true'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add package.json package-lock.json
+          git commit -m "chore(release): v${{ steps.version.outputs.new_version }} [skip ci]"
+          git push
+
+      - name: Resolve release commit
+        id: release-commit
+        run: echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
 
       - name: Publish to NPM
-        run: pnpm publish --no-git-checks --access public
+        run: pnpm publish --no-git-checks --access public --provenance
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
@@ -125,11 +154,12 @@ jobs:
         with:
           tag_name: v${{ steps.version.outputs.new_version }}
           name: Release v${{ steps.version.outputs.new_version }}
-          target_commitish: ${{ github.sha }}
+          target_commitish: ${{ steps.release-commit.outputs.sha }}
           body: |
             Automated package release.
 
             - Version: v${{ steps.version.outputs.new_version }}
-            - Commit: ${{ github.sha }}
+            - Commit: ${{ steps.release-commit.outputs.sha }}
             - Tests: pnpm test
             - Build: pnpm build
+            - Provenance: pnpm publish --provenance
