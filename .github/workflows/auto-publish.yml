@@ -43,9 +43,15 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 22.x
+          node-version: 24.x
           cache: pnpm
           registry-url: https://registry.npmjs.org/
+
+      - name: Upgrade npm
+        run: |
+          npm install --global npm@^11.5.1
+          node --version
+          npm --version
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
