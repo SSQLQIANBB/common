@@ -46,7 +46,6 @@ jobs:
           node-version: 22.x
           cache: pnpm
           registry-url: https://registry.npmjs.org/
-          always-auth: true
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
@@ -56,32 +55,6 @@ jobs:
 
       - name: Build package
         run: pnpm build
-
-      - name: Verify NPM authentication
-        run: |
-          if [ -z "${NODE_AUTH_TOKEN:-}" ]; then
-            echo "::error::GitHub Actions secret NPM_TOKEN is missing. Create an npm automation/granular access token from the npm account that maintains @sycsq/common, then save it as the repository secret NPM_TOKEN."
-            exit 1
-          fi
-
-          npm_user=$(npm whoami --registry=https://registry.npmjs.org/ 2>/tmp/npm-whoami.log) || {
-            cat /tmp/npm-whoami.log
-            echo "::error::npm whoami failed. Recreate NPM_TOKEN from the npm account 'ssqlqianbb' and make sure the token can publish @sycsq/common."
-            exit 1
-          }
-          echo "Authenticated npm user: $npm_user"
-
-          if npm view @sycsq/common@latest version --registry=https://registry.npmjs.org/ > /dev/null 2>&1; then
-            owners=$(npm owner ls @sycsq/common --registry=https://registry.npmjs.org/)
-            echo "$owners"
-
-            if ! echo "$owners" | grep -Eq "^${npm_user} "; then
-              echo "::error::NPM_TOKEN belongs to '$npm_user', but that user is not a maintainer of @sycsq/common. Create NPM_TOKEN from the npm account listed by 'npm owner ls @sycsq/common'."
-              exit 1
-            fi
-          fi
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Resolve publish version
         id: version
@@ -138,8 +111,6 @@ jobs:
           fi
 
           echo "new_version=$next_version" >> "$GITHUB_OUTPUT"
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Commit version bump
         if: steps.version.outputs.version_bumped == 'true'
@@ -156,8 +127,6 @@ jobs:
 
       - name: Publish to NPM
         run: npm publish --access public --provenance
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
