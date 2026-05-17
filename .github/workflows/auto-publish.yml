@@ -19,6 +19,7 @@ on:
 permissions:
   contents: write
   id-token: write
+  packages: write
 
 concurrency:
   group: publish-${{ github.ref }}
@@ -134,6 +135,19 @@ jobs:
       - name: Publish to NPM
         run: npm publish --access public --provenance
 
+      - name: Publish to GitHub Packages
+        run: |
+          {
+            echo "@ssqlqianbb:registry=https://npm.pkg.github.com"
+            echo "//npm.pkg.github.com/:_authToken=${NODE_AUTH_TOKEN}"
+          } >> "$NPM_CONFIG_USERCONFIG"
+
+          npm pkg set name="@ssqlqianbb/common"
+          npm pkg set publishConfig.registry="https://npm.pkg.github.com"
+          npm publish --registry=https://npm.pkg.github.com --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
@@ -147,4 +161,6 @@ jobs:
             - Commit: ${{ steps.release-commit.outputs.sha }}
             - Tests: pnpm test
             - Build: pnpm build
+            - npmjs: @sycsq/common
+            - GitHub Packages: @ssqlqianbb/common
             - Provenance: npm publish --provenance
