@@ -155,7 +155,7 @@ jobs:
         run: echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
 
       - name: Publish to NPM
-        run: pnpm publish --no-git-checks --access public --provenance
+        run: npm publish --access public --provenance
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
@@ -172,4 +172,4 @@ jobs:
             - Commit: ${{ steps.release-commit.outputs.sha }}
             - Tests: pnpm test
             - Build: pnpm build
-            - Provenance: pnpm publish --provenance
+            - Provenance: npm publish --provenance
