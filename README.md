@@ -170,8 +170,27 @@ interface RequestOptions {
   joinTime?: boolean;
   ignoreCancelToken?: boolean;
   withToken?: boolean;
-  errorHandler?: Function;
+  errorHandler?: ErrorHandler;
+  errorFactory?: ErrorFactory;
 }
+
+interface RequestErrorContext<T = any> {
+  code?: string;
+  message: string;
+  response?: AxiosResponse<Result<T>>;
+  responseData?: Result<T>;
+  options: RequestOptions;
+}
+
+type ErrorHandler<T = any> = (
+  message: string,
+  context: RequestErrorContext<T>
+) => void | Error;
+
+type ErrorFactory<T = any> = (
+  message: string,
+  context: RequestErrorContext<T>
+) => Error;
 ```
 
 ### 响应转换规则
@@ -181,7 +200,61 @@ interface RequestOptions {
 - `isReturnNativeResponse: true`：返回完整 Axios 响应
 - `isTransformResponse: false`：返回 `response.data`
 - 成功业务码 `200` 或 `202`：返回 `data`，如果 `data` 为 `undefined` 则返回 `body`
-- 失败业务码：调用 `errorHandler` 或输出错误信息，并抛出错误
+- 失败业务码：先调用 `errorHandler(message, context)`；如果返回 `Error`，直接抛出；否则调用 `errorFactory(message, context)` 创建异常；如果都未配置，则抛出默认 `Error`
+
+### 自定义异常处理
+
+业务错误和网络错误建议分开处理：
+
+- 业务错误：后端正常响应，但 `code` 不是成功码，使用 `errorHandler` 或 `errorFactory`
+- 网络错误：请求失败、超时、Axios adapter 或拦截器异常，使用 `requestCatchHook` 或 `responseInterceptorsCatch`
+
+全局异常工厂示例：
+
+```typescript
+import { Axios, axiosTransform } from '@sycsq/common';
+
+class ApiError extends Error {
+  constructor(
+    message: string,
+    public code?: string,
+    public detail?: unknown
+  ) {
+    super(message);
+    this.name = 'ApiError';
+  }
+}
+
+const api = new Axios({
+  transform: {
+    ...axiosTransform,
+    requestCatchHook(error) {
+      return Promise.reject(new ApiError(error.message, 'NETWORK_ERROR', error));
+    }
+  },
+  requestOptions: {
+    isTransformResponse: true,
+    errorHandler(message, context) {
+      console.warn('[business error]', context.code, message);
+    },
+    errorFactory(message, context) {
+      return new ApiError(message, context.code, context.responseData);
+    }
+  }
+});
+```
+
+单次请求覆盖示例：
+
+```typescript
+await api.get('/users', undefined, {
+  errorHandler(message, context) {
+    return new ApiError(`Scoped handler: ${message}`, `SCOPED_${context.code}`);
+  }
+});
+```
+
+兼容旧用法：只传 `errorHandler(message)` 仍然有效；如果不返回 `Error`，库会继续抛出默认异常或 `errorFactory` 生成的异常。
 
 ### 辅助函数
 
@@ -264,6 +337,18 @@ pnpm example:dev
 pnpm example:build
 pnpm example:preview
 ```
+
+示例项目位于 `example/`，通过 `workspace:*` 引用当前仓库源码。它覆盖：
+
+- GET 请求与 POST 请求
+- URL-first 和配置对象两种请求写法
+- 成功业务响应解包
+- 全局 `errorFactory` 自定义异常
+- 单次请求 `errorHandler` 覆盖异常
+- `requestCatchHook` 处理网络异常
+- `isString`、`isEmpty`、`isUrl` 等工具函数
+
+示例使用 Axios `adapter` mock 数据，不依赖真实后端接口。
 
 ## 自动化
 
@@ -478,8 +563,27 @@ interface RequestOptions {
   joinTime?: boolean;
   ignoreCancelToken?: boolean;
   withToken?: boolean;
-  errorHandler?: Function;
+  errorHandler?: ErrorHandler;
+  errorFactory?: ErrorFactory;
 }
+
+interface RequestErrorContext<T = any> {
+  code?: string;
+  message: string;
+  response?: AxiosResponse<Result<T>>;
+  responseData?: Result<T>;
+  options: RequestOptions;
+}
+
+type ErrorHandler<T = any> = (
+  message: string,
+  context: RequestErrorContext<T>
+) => void | Error;
+
+type ErrorFactory<T = any> = (
+  message: string,
+  context: RequestErrorContext<T>
+) => Error;
 ```
 
 ### Response Transform Behavior
@@ -489,7 +593,61 @@ The default `axiosTransform` processes business responses as follows:
 - `isReturnNativeResponse: true`: returns the full Axios response
 - `isTransformResponse: false`: returns `response.data`
 - Success codes `200` or `202`: returns `data`; if `data` is `undefined`, returns `body`
-- Failed business codes: calls `errorHandler` or logs the error, then throws
+- Failed business codes: calls `errorHandler(message, context)` first. If it returns an `Error`, that error is thrown. Otherwise `errorFactory(message, context)` is used to create the error. If neither is configured, a default `Error` is thrown.
+
+### Custom Error Handling
+
+Handle business errors and network errors separately:
+
+- Business errors: the server responds successfully, but `code` is not a success code. Use `errorHandler` or `errorFactory`.
+- Network errors: request failures, timeouts, Axios adapter errors, or interceptor errors. Use `requestCatchHook` or `responseInterceptorsCatch`.
+
+Global error factory example:
+
+```typescript
+import { Axios, axiosTransform } from '@sycsq/common';
+
+class ApiError extends Error {
+  constructor(
+    message: string,
+    public code?: string,
+    public detail?: unknown
+  ) {
+    super(message);
+    this.name = 'ApiError';
+  }
+}
+
+const api = new Axios({
+  transform: {
+    ...axiosTransform,
+    requestCatchHook(error) {
+      return Promise.reject(new ApiError(error.message, 'NETWORK_ERROR', error));
+    }
+  },
+  requestOptions: {
+    isTransformResponse: true,
+    errorHandler(message, context) {
+      console.warn('[business error]', context.code, message);
+    },
+    errorFactory(message, context) {
+      return new ApiError(message, context.code, context.responseData);
+    }
+  }
+});
+```
+
+Per-request override example:
+
+```typescript
+await api.get('/users', undefined, {
+  errorHandler(message, context) {
+    return new ApiError(`Scoped handler: ${message}`, `SCOPED_${context.code}`);
+  }
+});
+```
+
+The old style `errorHandler(message)` remains compatible. If the handler does not return an `Error`, the wrapper will continue by throwing the default error or the error from `errorFactory`.
 
 ### Helpers
 
@@ -572,6 +730,18 @@ pnpm example:dev
 pnpm example:build
 pnpm example:preview
 ```
+
+The example project is located in `example/` and references the local package through `workspace:*`. It covers:
+
+- GET and POST requests
+- URL-first and config-object request styles
+- Successful business response unwrapping
+- Global custom errors through `errorFactory`
+- Per-request custom errors through `errorHandler`
+- Network error handling through `requestCatchHook`
+- Utility functions such as `isString`, `isEmpty`, and `isUrl`
+
+The example uses an Axios `adapter` to mock data, so it does not require a real backend API.
 
 ## Automation
 
