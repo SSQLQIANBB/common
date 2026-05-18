@@ -75,6 +75,41 @@ describe('Axios wrapper', () => {
     await expect(http.get({ url: '/users' })).resolves.toEqual({ ok: true, url: '/api/users' });
   });
 
+  it('adopts request catch hook rejections and fallback values', async () => {
+    class ApiError extends Error {
+      constructor(message: string) {
+        super(message);
+        this.name = 'ApiError';
+      }
+    }
+
+    const failingHttp = new Axios({
+      adapter: createAdapter(() => {
+        throw new Error('network down');
+      }),
+      transform: {
+        requestCatchHook(error) {
+          return Promise.reject(new ApiError(error.message));
+        }
+      }
+    });
+
+    await expect(failingHttp.get('/users')).rejects.toThrow(ApiError);
+
+    const fallbackHttp = new Axios({
+      adapter: createAdapter(() => {
+        throw new Error('network down');
+      }),
+      transform: {
+        requestCatchHook() {
+          return Promise.resolve({ offline: true });
+        }
+      }
+    });
+
+    await expect(fallbackHttp.get('/users')).resolves.toEqual({ offline: true });
+  });
+
   it('keeps interceptors after reconfiguring axios', async () => {
     const seenHeaders: unknown[] = [];
     const adapter = createAdapter(config => {

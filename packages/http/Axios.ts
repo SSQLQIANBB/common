@@ -169,7 +169,11 @@ export class Axios {
         })
         .catch((e: Error | AxiosError) => {
           if (requestCatchHook && isFunction(requestCatchHook)) {
-            reject(requestCatchHook(e, opt));
+            try {
+              Promise.resolve(requestCatchHook(e, opt)).then(resolve).catch(reject);
+            } catch (err) {
+              reject(err);
+            }
 
             return;
           }

@@ -27,7 +27,51 @@ describe('axiosTransform', () => {
         { isTransformResponse: true, errorHandler }
       )
     ).toThrow('failed');
-    expect(errorHandler).toHaveBeenCalledWith('failed');
+    expect(errorHandler).toHaveBeenCalledWith(
+      'failed',
+      expect.objectContaining({
+        code: ResultEnum.ERROR,
+        message: 'failed',
+        responseData: expect.objectContaining({ code: ResultEnum.ERROR })
+      })
+    );
+  });
+
+  it('supports custom errors returned by handlers or factories', () => {
+    class ApiError extends Error {
+      constructor(
+        message: string,
+        public code?: string
+      ) {
+        super(message);
+        this.name = 'ApiError';
+      }
+    }
+
+    expect(() =>
+      axiosTransform.transformResponseHook!(
+        { data: { code: ResultEnum.ERROR, message: 'returned error' } } as any,
+        {
+          isTransformResponse: true,
+          errorHandler(message, context) {
+            return new ApiError(message, context.code);
+          }
+        }
+      )
+    ).toThrow(ApiError);
+
+    expect(() =>
+      axiosTransform.transformResponseHook!(
+        { data: { code: ResultEnum.ERROR, message: 'factory error' } } as any,
+        {
+          isTransformResponse: true,
+          errorHandler: vi.fn(),
+          errorFactory(message, context) {
+            return new ApiError(message, context.code);
+          }
+        }
+      )
+    ).toThrow(ApiError);
   });
 
   it('builds request urls, timestamps, formatted params and post query strings', () => {

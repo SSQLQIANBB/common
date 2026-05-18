@@ -41,13 +41,23 @@ export const axiosTransform: AxiosTransform = {
         errorMsg = message || msg;
     }
 
+    const messageText = errorMsg || '请求失败';
+    const errorContext = {
+      code,
+      message: messageText,
+      response: res,
+      responseData,
+      options
+    };
 
     if (options.errorHandler) {
-      options.errorHandler(errorMsg);
+      const handledError = options.errorHandler(messageText, errorContext);
+      if (handledError instanceof Error) throw handledError;
     } else {
-      console.error(errorMsg);
+      console.error(messageText);
     }
-    throw new Error(errorMsg || '请求失败');
+
+    throw options.errorFactory?.(messageText, errorContext) ?? new Error(messageText);
   },
 
   beforeRequestHook(config, options) {
@@ -87,12 +97,9 @@ export const axiosTransform: AxiosTransform = {
     return config;
   },
 
-  /**
-   * @description 请求拦截
-   */
   requestInterceptors(config: CreateAxiosOptions, options): AxiosRequestConfig {
     void options;
-    // 暂定localStorage获取token, 补充store后调整；
+
     const token =
       typeof globalThis !== 'undefined' && 'localStorage' in globalThis
         ? globalThis.localStorage?.getItem('token')
@@ -109,12 +116,4 @@ export const axiosTransform: AxiosTransform = {
 
     return config;
   }
-  // requestInterceptorCatch(err: Error) {},
-  /**
-   * @description 响应拦截处理
-   */
-  // responseInterceptors(res) {},
-  // responseInterceptorsCatch(err: Error) {
-  //   // 处理错误请求
-  // }
 };

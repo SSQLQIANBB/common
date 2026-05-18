@@ -10,7 +10,8 @@ export interface RequestOptions {
     joinTime?: boolean;
     ignoreCancelToken?: boolean;
     withToken?: boolean;
-    errorHandler?: Function;
+    errorHandler?: ErrorHandler;
+    errorFactory?: ErrorFactory;
 }
 export interface Result<T = any> {
     code: string;
@@ -20,6 +21,15 @@ export interface Result<T = any> {
     body: T;
     data: T;
 }
+export interface RequestErrorContext<T = any> {
+    code?: string;
+    message: string;
+    response?: AxiosResponse<Result<T>>;
+    responseData?: Result<T>;
+    options: RequestOptions;
+}
+export type ErrorHandler<T = any> = (message: string, context: RequestErrorContext<T>) => void | Error;
+export type ErrorFactory<T = any> = (message: string, context: RequestErrorContext<T>) => Error;
 export declare enum ResultEnum {
     SUCCESS = "200",
     ASYNC_SUCCESS = "202",

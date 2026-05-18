@@ -22,7 +22,9 @@ export interface RequestOptions {
   // Whether to send token in header
   withToken?: boolean;
   // error handle
-  errorHandler?: Function
+  errorHandler?: ErrorHandler;
+  // custom business error factory
+  errorFactory?: ErrorFactory;
 }
 
 export interface Result<T = any> {
@@ -33,6 +35,24 @@ export interface Result<T = any> {
   body: T;
   data: T;
 }
+
+export interface RequestErrorContext<T = any> {
+  code?: string;
+  message: string;
+  response?: AxiosResponse<Result<T>>;
+  responseData?: Result<T>;
+  options: RequestOptions;
+}
+
+export type ErrorHandler<T = any> = (
+  message: string,
+  context: RequestErrorContext<T>
+) => void | Error;
+
+export type ErrorFactory<T = any> = (
+  message: string,
+  context: RequestErrorContext<T>
+) => Error;
 
 export enum ResultEnum {
   SUCCESS = '200',
